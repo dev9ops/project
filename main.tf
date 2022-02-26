@@ -1,54 +1,53 @@
-provider "aws" {
-  region = var.aws_region
-}
 
-#Create security group with firewall rules
-resource "aws_security_group" "my_security_group" {
-  name        = var.security_group
-  description = "security group for Ec2 instance"
+ resource "aws_vpc" "Main" {                
+   cidr_block       = var.main_vpc_cidr     
+   instance_tenancy = "default"
+ }
 
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+ resource "aws_internet_gateway" "IGW" {   
+    vpc_id =  aws_vpc.Main.id               
+ }
 
- ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+ resource "aws_subnet" "publicsubnets" {    
+   vpc_id =  aws_vpc.Main.id
+   cidr_block = "${var.public_subnets}"       
+ }
+                      
+ resource "aws_subnet" "privatesubnets" {
+   vpc_id =  aws_vpc.Main.id
+   cidr_block = "${var.private_subnets}"         
+ }
+ 
+ resource "aws_route_table" "PublicRT" {    
+    vpc_id =  aws_vpc.Main.id
+         route {
+    cidr_block = "0.0.0.0/0"              
+    gateway_id = aws_internet_gateway.IGW.id
+     }
+ }
 
- # outbound from jenkis server
-  egress {
-    from_port   = 0
-    to_port     = 65535
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+ resource "aws_route_table" "PrivateRT" {    
+   vpc_id = aws_vpc.Main.id
+   route {
+   cidr_block = "0.0.0.0/0"             
+   nat_gateway_id = aws_nat_gateway.NATgw.id
+   }
+ }
 
-  tags= {
-    Name = var.security_group
-  }
-}
+ resource "aws_route_table_association" "PublicRTassociation" {
+    subnet_id = aws_subnet.publicsubnets.id
+    route_table_id = aws_route_table.PublicRT.id
+ }
 
-resource "aws_instance" "myFirstInstance" {
-  ami           = var.ami_id
-  key_name = var.key_name
-  instance_type = var.instance_type
-  security_groups= [var.security_group]
-  tags= {
-    Name = var.tag_name
-  }
-}
+ resource "aws_route_table_association" "PrivateRTassociation" {
+    subnet_id = aws_subnet.privatesubnets.id
+    route_table_id = aws_route_table.PrivateRT.id
+ }
+ resource "aws_eip" "nateIP" {
+   vpc   = true
+ }
 
-# Create Elastic IP address
-resource "aws_eip" "myFirstInstance" {
-  vpc      = true
-  instance = aws_instance.myFirstInstance.id
-tags= {
-    Name = "my_elastic_ip"
-  }
-}
+ resource "aws_nat_gateway" "NATgw" {
+   allocation_id = aws_eip.nateIP.id
+   subnet_id = aws_subnet.publicsubnets.id
+ }

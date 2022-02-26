@@ -1,12 +1,14 @@
 pipeline {
-    agent any    
-    
-        stage ("terraform init") {
+    agent any
+
+    stages {
+        stage('Terraform Version') {
             steps {
-                sh ("terraform init -migrate-state") 
+                echo 'Terraform version..'
+                sh "/usr/bin/terraform version"
+                
             }
         }
-        
         stage ("plan") {
             steps {
                 sh ('terraform plan') 
@@ -20,4 +22,3 @@ pipeline {
            }
         }  
 }
-    
